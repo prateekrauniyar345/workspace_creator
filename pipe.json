@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "id": "workplace-orchestrator",
+      "path": "/api/launch-profile",
+      "schedule": "0 8 * * *" 
+    }
+  ]
+}
