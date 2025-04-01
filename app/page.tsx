@@ -89,29 +89,39 @@ export default function WorkspaceOrchestrator() {
   // Schedule app opening
   const scheduleAppOpening = (profile: WorkspaceProfile) => {
     if (!profile.schedules || profile.schedules.length === 0) return;
-
-    for (const sched of profile.schedules) {
+  
+    const frozenProfile = JSON.parse(JSON.stringify(profile)); // Deep copy to preserve full data
+  
+    for (const sched of frozenProfile.schedules) {
       const now = new Date();
       const [hour, minute] = sched.time.split(':').map(Number);
       const scheduledTime = new Date();
       scheduledTime.setHours(hour, minute, 0, 0);
-
-      // If the time has passed for today, schedule for tomorrow
+  
       if (scheduledTime < now) {
         scheduledTime.setDate(scheduledTime.getDate() + 1);
       }
-
+  
       const delay = scheduledTime.getTime() - now.getTime();
-      console.log(`Scheduling app launch in ${delay / 1000}s`);
-
+      console.log(`⏰ Scheduling '${frozenProfile.name}' in ${delay / 1000}s`);
+  
       setTimeout(() => {
-        applyProfile(profile);
+        console.log(`[⏰] Running scheduled profile: ${frozenProfile.name}`);
+        console.log("📦 Apps:", frozenProfile.apps);
+        console.log("🌐 URLs:", frozenProfile.urls);
+        applyProfile(frozenProfile);
+  
         if (sched.repeatDaily) {
-          setInterval(() => applyProfile(profile), 24 * 60 * 60 * 1000); // Every 24 hours
+          setInterval(() => {
+            console.log(`[🔁] Daily repeat: ${frozenProfile.name}`);
+            applyProfile(frozenProfile);
+          }, 24 * 60 * 60 * 1000);
         }
       }, delay);
     }
   };
+  
+  
 
   const saveProfile = (profileInfo: {
     name: string;
@@ -123,7 +133,7 @@ export default function WorkspaceOrchestrator() {
       name: profileInfo.name,
       description: profileInfo.description || '',
       apps: profileInfo.apps ?? windows.map(w => w.app),
-      urls: profileInfo.urls ?? [],
+      urls: profileInfo.urls?.length ? profileInfo.urls : urls, // ✅ important fix
       windowLayout: windows,
       schedules: scheduleTime
         ? [{ time: scheduleTime, repeatDaily }]
@@ -205,123 +215,141 @@ const handleAiCommand = async () => {
   }, []);
 
   return (
-    <div className="p-4 grid grid-cols-3 gap-4">
-      <div className="col-span-1">
-      <ProfileManager
-        profiles={profiles}
-        onApply={applyProfile}
-        onSave={saveProfile}
-        onDelete={(profileName) => {
-            const updated = profiles.filter(p => p.name !== profileName);
-            setProfiles(updated);
-            localStorage.setItem('workspace-profiles', JSON.stringify(updated));
-        }}
-        />
-
-        { /* 🧠 AI Profile Generator goes here */}
-      <div className="mt-6 space-y-2">
-        <label className="block text-sm font-medium">🧠 Create Profile with AI</label>
-        <input
-          type="text"
-          placeholder='e.g. "Create workspace for editing: Photoshop, YouTube, Notion"'
-          value={aiCommand}
-          onChange={(e) => setAiCommand(e.target.value)}
-          className="w-full p-2 border rounded"
-        />
-        <button
-          onClick={handleAiCommand}
-          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
-        >
-          Generate Profile
-        </button>
+    <div className="p-4">
+      {/* 🔥 Project Header */}
+      <div className="mb-6 text-center">
+        <h1 className="text-3xl font-bold text-gray-900">🖥️ WorkSync AI</h1>
+        <p className="text-sm text-gray-600 mt-1">
+          Effortless Workspaces, Powered by AI & Automation
+        </p>
       </div>
-
-        <div className="mt-4">
-          <label className="block mb-2 text-sm font-medium">Schedule Time:</label>
-          <input
-            type="time"
-            value={scheduleTime}
-            onChange={(e) => setScheduleTime(e.target.value)}
-            className="w-full p-2 border rounded"
+  
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-1">
+          <ProfileManager
+            profiles={profiles}
+            onApply={applyProfile}
+            onDelete={(profileName) => {
+              const updated = profiles.filter(p => p.name !== profileName);
+              setProfiles(updated);
+              localStorage.setItem('workspace-profiles', JSON.stringify(updated));
+            }}
+            onSave={(profileInfo) => {
+              saveProfile({
+                ...profileInfo,
+                urls, // ✅ pass currently added URLs
+              });
+            }}
           />
-          <label className="flex items-center mt-2">
+  
+          {/* 🧠 AI Profile Generator */}
+          <div className="mt-6 space-y-2">
+            <label className="block text-sm font-medium">🧠 Create Profile with AI</label>
             <input
-              type="checkbox"
-              checked={repeatDaily}
-              onChange={(e) => setRepeatDaily(e.target.checked)}
-              className="mr-2"
-            />
-            Every day
-          </label>
-        </div>
-      </div>
-
-      <div className="col-span-2">
-        <AppSelector
-          apps={installedApps}
-          onAppSelect={(app) => {
-            setWindows((prev) => [
-              ...prev,
-              { app, position: { x: 0, y: 0, width: 400, height: 300 } },
-            ]);
-          }}
-        />
-        <LayoutEditor
-          windows={windows}
-          onChange={setWindows}
-        />
-        <input
-          type="text"
-          value={windows.map((window) => window.app).join(', ') || 'No apps selected'}
-          readOnly
-          className="w-full p-2 border rounded mb-4"
-          placeholder="Selected apps will appear here..."
-        />
-        {/* URL Input */}
-        <div className="mt-6">
-        <label className="block mb-2 text-sm font-medium">Add URL:</label>
-        <div className="flex space-x-2 mb-2">
-            <input
-            type="text"
-            placeholder="https://example.com"
-            value={newUrl}
-            onChange={(e) => setNewUrl(e.target.value)}
-            className="w-full p-2 border rounded"
+              type="text"
+              placeholder='e.g. "Create workspace for editing: Photoshop, YouTube, Notion"'
+              value={aiCommand}
+              onChange={(e) => setAiCommand(e.target.value)}
+              className="w-full p-2 border rounded"
             />
             <button
-            onClick={() => {
-                if (newUrl.trim()) {
-                setUrls([...urls, newUrl.trim()]);
-                setNewUrl('');
-                }
-            }}
-            className="bg-blue-500 text-white px-3 py-1 rounded"
+              onClick={handleAiCommand}
+              className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
             >
-            Add
+              Generate Profile
             </button>
+          </div>
+  
+          {/* ⏰ Schedule */}
+          <div className="mt-4">
+            <label className="block mb-2 text-sm font-medium">Schedule Time:</label>
+            <input
+              type="time"
+              value={scheduleTime}
+              onChange={(e) => setScheduleTime(e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <label className="flex items-center mt-2">
+              <input
+                type="checkbox"
+                checked={repeatDaily}
+                onChange={(e) => setRepeatDaily(e.target.checked)}
+                className="mr-2"
+              />
+              Every day
+            </label>
+          </div>
         </div>
-
-        {/* Show added URLs */}
-        <ul className="text-sm space-y-1">
-            {urls.map((url, index) => (
-            <li key={index} className="flex justify-between items-center bg-gray-100 p-2 rounded">
-                <span className="truncate max-w-[80%]">{url}</span>
-                <button
+  
+        <div className="col-span-2">
+          <AppSelector
+            apps={installedApps}
+            onAppSelect={(app) => {
+              setWindows((prev) => [
+                ...prev,
+                { app, position: { x: 0, y: 0, width: 400, height: 300 } },
+              ]);
+            }}
+          />
+          <LayoutEditor
+            windows={windows}
+            onChange={setWindows}
+          />
+          <input
+            type="text"
+            value={windows.map((window) => window.app).join(', ') || 'No apps selected'}
+            readOnly
+            className="w-full p-2 border rounded mb-4"
+            placeholder="Selected apps will appear here..."
+          />
+  
+          {/* 🌐 URL Input */}
+          <div className="mt-6">
+            <label className="block mb-2 text-sm font-medium">Add URL:</label>
+            <div className="flex space-x-2 mb-2">
+              <input
+                type="text"
+                placeholder="https://example.com"
+                value={newUrl}
+                onChange={(e) => setNewUrl(e.target.value)}
+                className="w-full p-2 border rounded"
+              />
+              <button
                 onClick={() => {
-                    setUrls(urls.filter((_, i) => i !== index));
+                  if (newUrl.trim()) {
+                    setUrls([...urls, newUrl.trim()]);
+                    setNewUrl('');
+                  }
                 }}
-                className="text-red-500 text-xs hover:underline"
-                >
-                Remove
-                </button>
-            </li>
-            ))}
-        </ul>
+                className="bg-blue-500 text-white px-3 py-1 rounded"
+              >
+                Add
+              </button>
+            </div>
+  
+            {/* Show added URLs */}
+            <ul className="text-sm space-y-1">
+              {urls.map((url, index) => (
+                <li key={index} className="flex justify-between items-center bg-gray-100 p-2 rounded">
+                  <span className="truncate max-w-[80%]">{url}</span>
+                  <button
+                    onClick={() => {
+                      setUrls(urls.filter((_, i) => i !== index));
+                    }}
+                    className="text-red-500 text-xs hover:underline"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-
       </div>
     </div>
   );
+  
+    
 }
 
 type WindowLayout = {

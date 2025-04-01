@@ -16,12 +16,17 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "system",
-          content: `You are a workspace assistant. Your job is to return only JSON with this shape:
-        {
-          "name": "Workspace Name",
-          "entries": ["Spotify", "YouTube", "Figma"]
-        }
-        Do NOT add extra explanation, do NOT use triple backticks. Just return clean JSON.`
+          content: `You are a workspace assistant. Only extract **exactly what the user says**. 
+                    Return valid JSON only in this format:
+
+                    {
+                      "name": "Workspace Name",
+                      "entries": ["AppOrSite1", "AppOrSite2"]
+                    }
+
+                    ⚠️ Do not add extra tools or services unless explicitly mentioned.
+                    No explanations, only valid JSON.`,
+
         },         
         {
           role: "user",
